@@ -1,0 +1,102 @@
+<script>
+window.onload = function() {
+var ac = new AudioContext();
+var fft_components = 512;
+var fft = new Float32Array(fft_components);
+var audio = null, canvas = null;
+
+function setup_webaudio(tune) {
+  var an = ac.createAnalyser();
+  an.fftSize = fft_components * 2;
+  an.smoothingTimeConstant = 0.1;
+  var source = ac.createBufferSource();
+  source.buffer = tune;
+  source.loop = true;
+  source.connect(an);
+  source.connect(ac.destination);
+  return {ac: ac, source:source, an:an};
+}
+
+function setup_canvas() {
+  var cvs = document.querySelector("canvas");
+  cvs.width = fft_components;
+  cvs.height = 256;
+  var c = cvs.getContext("2d");
+  
+  return {c:c, cvs:cvs, w:cvs.w, h:cvs.h};
+}
+
+function load_tune(ac, url, cb) {
+  var request = new XMLHttpRequest();
+  request.open("GET", url, true);
+  request.responseType = "arraybuffer";
+
+  request.onload = function() {
+    ac.decodeAudioData(request.response, function(data) {
+      cb(data);
+    }, function() {
+      alert("decodeAudioData error");
+    });
+  };
+  
+  request
+
+  request.send();
+}
+
+function render() {
+  canvas.c.clearRect(0, 0, canvas.cvs.width, canvas.cvs.height);
+
+  audio.an.getFloatFrequencyData(fft);
+
+  var left = 0;
+  var right = 5;
+
+  var minDecibels = -audio.an.minDecibels;
+  var range = -audio.an.minDecibels + audio.an.maxDecibels;
+
+  for (var i = 0; i < fft_components; i++) {
+    if (i >= left && i <= right) {
+      canvas.c.fillStyle = "#f00";
+    } else {
+       canvas.c.fillStyle = "#fff";
+    }
+    canvas.c.fillRect(i * 4,
+                      canvas.cvs.height,
+                      3,
+                      -((fft[i] + minDecibels) / range) * canvas.cvs.height);
+  }
+  var avg = 0;
+  for (var i = left; i < right; i++) {
+    avg += ((fft[i] + minDecibels) / range);
+  }
+  avg /= right - left;
+  if (avg > 0.85) {
+    canvas.c.fillStyle = "rgba(255, 255, 255, 0.8)";
+    canvas.c.fillRect(0, 0, canvas.cvs.width, canvas.cvs.height);
+    document.body.style.backgroundColor = "white";
+  } else {
+    document.body.style.backgroundColor = "black";
+  }
+  requestAnimationFrame(render);
+}
+
+load_tune(ac, "demojs-demo-beatdetector.ogg", function(tune) {
+  audio = setup_webaudio(tune);
+  canvas = setup_canvas();
+  audio.source.start();
+  render(audio, canvas);
+});
+}
+</script>
+<style>
+canvas {
+  display: block;
+  margin: 0 auto;
+}
+html, body {
+ background-color: black;
+}
+</style>
+<canvas>
+</canvas>
